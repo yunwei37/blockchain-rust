@@ -2,12 +2,13 @@ use super::*;
 use bincode::serialize;
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
+use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 
 const TARGET_HEXS: usize = 4;
 
 /// Block keeps block headers
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Block {
     timestamp: u128,
     data: String,
@@ -19,6 +20,10 @@ pub struct Block {
 impl Block {
     pub fn get_hash(&self) -> String {
         self.hash.clone()
+    }
+
+    pub fn get_prev_hash(&self) -> String {
+        self.prev_block_hash.clone()
     }
 
     /// NewBlock creates and returns Block
