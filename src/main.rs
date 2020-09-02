@@ -1,6 +1,7 @@
 mod block;
 mod blockchain;
 mod cli;
+mod transaction;
 
 #[macro_use]
 extern crate log;

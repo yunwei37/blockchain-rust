@@ -43,7 +43,7 @@ impl Cli {
     }
 
     fn print_chain(&mut self) {
-        for b in &mut self.bc {
+        for b in self.bc.iter() {
             println!("block: {:#?}", b);
         }
     }

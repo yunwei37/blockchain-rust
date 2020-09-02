@@ -1,4 +1,5 @@
 use super::*;
+use crate::transaction::Transaction;
 use bincode::serialize;
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
@@ -11,7 +12,7 @@ const TARGET_HEXS: usize = 4;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Block {
     timestamp: u128,
-    data: String,
+    transaction: Vec<Transaction>,
     prev_block_hash: String,
     hash: String,
     nonce: i32,
@@ -24,6 +25,10 @@ impl Block {
 
     pub fn get_prev_hash(&self) -> String {
         self.prev_block_hash.clone()
+    }
+
+    pub fn get_transaction(&self) -> &Vec<Transaction> {
+        &self.transaction
     }
 
     /// NewBlock creates and returns Block
@@ -46,6 +51,8 @@ impl Block {
     pub fn new_genesis_block() -> Block {
         Block::new_block(String::from("Genesis Block"), String::new()).unwrap()
     }
+
+    pub fn
 
     /// Run performs a proof-of-work
     fn run_proof_of_work(&mut self) -> Result<()> {
@@ -80,22 +87,5 @@ impl Block {
         let mut vec1: Vec<u8> = Vec::new();
         vec1.resize(TARGET_HEXS, '0' as u8);
         Ok(&hasher.result_str()[0..TARGET_HEXS] == String::from_utf8(vec1)?)
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use std::thread::sleep;
-    use std::time::Duration;
-
-    #[test]
-    fn test_valid() -> Result<()> {
-        let b0 = Block::new_genesis_block();
-        assert!(b0.validate()?);
-        sleep(Duration::from_millis(10));
-        let b1 = Block::new_block(String::from("Send 1 BTC to Ivan"), b0.hash)?;
-        assert!(b1.validate()?);
-        Ok(())
     }
 }
