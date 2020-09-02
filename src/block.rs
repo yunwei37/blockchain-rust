@@ -49,7 +49,7 @@ impl Block {
 
     /// Run performs a proof-of-work
     fn run_proof_of_work(&mut self) -> Result<()> {
-        println!("Mining the block containing \"{}\"\n", self.data);
+        info!("Mining the block containing \"{}\"\n", self.data);
         while !self.validate()? {
             self.nonce += 1;
         }

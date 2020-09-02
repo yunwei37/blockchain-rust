@@ -1,24 +1,20 @@
 mod block;
 mod blockchain;
+mod cli;
+
+#[macro_use]
+extern crate log;
 
 pub type Result<T> = std::result::Result<T, failure::Error>;
 
-use blockchain::*;
-use std::env;
-use std::thread::sleep;
-use std::time::Duration;
+use crate::cli::Cli;
+use env_logger::Env;
 
 fn main() -> Result<()> {
-    let mut bc = Blockchain::new()?;
-    let args: Vec<String> = env::args().collect();
+    env_logger::from_env(Env::default().default_filter_or("warning")).init();
 
-    sleep(Duration::from_millis(10));
-    bc.add_block(String::from("Send 1 BTC to Ivan"))?;
-    sleep(Duration::from_millis(30));
-    bc.add_block(String::from("Send 2 more BTC to Ivan"))?;
+    let mut cli = Cli::new()?;
+    cli.run()?;
 
-    for b in bc {
-        println!("block: {:#?}", b);
-    }
     Ok(())
 }

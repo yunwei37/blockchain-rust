@@ -16,10 +16,12 @@ impl Blockchain {
     ///
     /// store the last hash with a key as "LAST", and the serialized block with a key as it's hash
     pub fn new() -> Result<Blockchain> {
-        let db = sled::open("/tmp/blocks")?;
+        info!("Creating new blockchain");
 
+        let db = sled::open("data/blocks")?;
         match db.get("LAST")? {
             Some(hash) => {
+                info!("Found block database");
                 let lasthash = String::from_utf8(hash.to_vec())?;
                 Ok(Blockchain {
                     tip: lasthash.clone(),
@@ -28,6 +30,7 @@ impl Blockchain {
                 })
             }
             None => {
+                info!("Creating new block database");
                 let block = Block::new_genesis_block();
                 db.insert(block.get_hash(), serialize(&block)?)?;
                 db.insert("LAST", block.get_hash().as_bytes())?;
@@ -46,6 +49,8 @@ impl Blockchain {
     ///
     /// Save the block into the database
     pub fn add_block(&mut self, data: String) -> Result<()> {
+        info!("add new block to the chain");
+
         let lasthash = self.db.get("LAST")?.unwrap();
 
         let newblock = Block::new_block(data, String::from_utf8(lasthash.to_vec())?)?;
