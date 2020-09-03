@@ -4,6 +4,7 @@ use bincode::serialize;
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
 use serde::{Deserialize, Serialize};
+use failure::format_err;
 
 const SUBSIDY: i32 = 10;
 
@@ -33,8 +34,14 @@ pub struct Transaction {
 impl Transaction {
     /// NewUTXOTransaction creates a new transaction
     pub fn new_UTXO(from: &str, to: &str, amount: i32, bc: &Blockchain) -> Result<Transaction> {
+        info!("new UTXO Transaction from: {} to: {}",from,to);
         let mut vin = Vec::new();
         let acc_v = bc.find_spendable_outputs(from, amount);
+
+        if acc_v.0 < amount {
+            error!("Not Enough balance");
+            return Err(format_err!("Not Enough balance: current balance {}",acc_v.0));
+        }
 
         for tx in acc_v.1 {
             for out in tx.1 {
@@ -69,6 +76,7 @@ impl Transaction {
 
     /// NewCoinbaseTX creates a new coinbase transaction
     pub fn new_coinbase(to: String, mut data: String) -> Result<Transaction> {
+        info!("new coinbase Transaction to: {}",to);
         if data == String::from("") {
             data += &format!("Reward to '{}'", to);
         }

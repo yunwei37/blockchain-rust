@@ -43,7 +43,7 @@ impl Blockchain {
         info!("Creating new blockchain");
 
         let db = sled::open("data/blocks")?;
-        info!("Creating new block database");
+        debug!("Creating new block database");
         let cbtx = Transaction::new_coinbase(address, String::from(GENESIS_COINBASE_DATA))?;
         let genesis: Block = Block::new_genesis_block(cbtx);
         db.insert(genesis.get_hash(), serialize(&genesis)?)?;
@@ -58,6 +58,7 @@ impl Blockchain {
 
     /// MineBlock mines a new block with the provided transactions
     pub fn mine_block(&mut self, transactions: Vec<Transaction>) -> Result<()> {
+        info!("mine a new block");
         let lasthash = self.db.get("LAST")?.unwrap();
 
         let newblock = Block::new_block(transactions, String::from_utf8(lasthash.to_vec())?)?;
