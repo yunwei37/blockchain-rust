@@ -12,7 +12,7 @@ const TARGET_HEXS: usize = 4;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Block {
     timestamp: u128,
-    transaction: Vec<Transaction>,
+    transactions: Vec<Transaction>,
     prev_block_hash: String,
     hash: String,
     nonce: i32,
@@ -28,17 +28,17 @@ impl Block {
     }
 
     pub fn get_transaction(&self) -> &Vec<Transaction> {
-        &self.transaction
+        &self.transactions
     }
 
     /// NewBlock creates and returns Block
-    pub fn new_block(data: String, prev_block_hash: String) -> Result<Block> {
+    pub fn new_block(transactions: Vec<Transaction>, prev_block_hash: String) -> Result<Block> {
         let timestamp = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)?
             .as_millis();
         let mut block = Block {
             timestamp,
-            data,
+            transactions,
             prev_block_hash,
             hash: String::new(),
             nonce: 0,
@@ -48,15 +48,13 @@ impl Block {
     }
 
     /// NewGenesisBlock creates and returns genesis Block
-    pub fn new_genesis_block() -> Block {
-        Block::new_block(String::from("Genesis Block"), String::new()).unwrap()
+    pub fn new_genesis_block(coinbase: Transaction) -> Block {
+        Block::new_block(vec![coinbase], String::new()).unwrap()
     }
-
-    pub fn
 
     /// Run performs a proof-of-work
     fn run_proof_of_work(&mut self) -> Result<()> {
-        info!("Mining the block containing \"{}\"\n", self.data);
+        info!("Mining the block containing \"{:#?}\"\n", self.transactions);
         while !self.validate()? {
             self.nonce += 1;
         }
@@ -70,7 +68,7 @@ impl Block {
     fn prepare_hash_data(&self) -> Result<Vec<u8>> {
         let content = (
             self.prev_block_hash.clone(),
-            self.data.clone(),
+            self.transactions.clone(),
             self.timestamp,
             TARGET_HEXS,
             self.nonce,
