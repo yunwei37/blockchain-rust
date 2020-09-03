@@ -1,27 +1,27 @@
 use super::*;
 use bincode::{deserialize, serialize};
 use bitcoincash_addr::Address;
+use crypto::digest::Digest;
 use crypto::ed25519;
 use crypto::ripemd160::Ripemd160;
-use crypto::digest::Digest;
 use crypto::sha2::Sha256;
+use rand::Rng;
+use serde::{Deserialize, Serialize};
 use sled;
 use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
-use std::time::SystemTime;
 
-const VERSION: u8 = 0;
-const addressChecksumLen: usize = 4;
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Wallet {
-    secret_key: Vec<u8>,
-    public_key: Vec<u8>,
+    pub secret_key: Vec<u8>,
+    pub public_key: Vec<u8>,
 }
 
 impl Wallet {
     fn new() -> Self {
-        let (secret_key, public_key) = ed25519::keypair(&vec![0]);
+        let mut key: [u8; 64] = [0; 64];
+        let mut rand = rand::OsRng::new().unwrap();
+        rand.fill_bytes(&mut key);
+        let (secret_key, public_key) = ed25519::keypair(&key);
         let secret_key = secret_key.to_vec();
         let public_key = public_key.to_vec();
         Wallet {
@@ -31,7 +31,7 @@ impl Wallet {
     }
 
     fn get_address(&self) -> String {
-        let mut pub_hash:Vec<u8> = self.public_key.clone();
+        let mut pub_hash: Vec<u8> = self.public_key.clone();
         hash_pub_key(&mut pub_hash);
         let address = Address {
             body: pub_hash,
@@ -41,7 +41,7 @@ impl Wallet {
     }
 }
 
-pub fn hash_pub_key(pubKey: &mut Vec<u8>){
+pub fn hash_pub_key(pubKey: &mut Vec<u8>) {
     let mut hasher1 = Sha256::new();
     hasher1.input(pubKey);
     hasher1.result(pubKey);
@@ -105,5 +105,18 @@ impl Wallets {
 
         db.flush()?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_create_wallet() {
+        let w1 = Wallet::new();
+        let w2 = Wallet::new();
+        assert_ne!(w1, w2);
+        assert_ne!(w1.get_address(), w2.get_address());
     }
 }

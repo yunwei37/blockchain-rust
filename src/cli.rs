@@ -39,15 +39,15 @@ impl Cli {
 
         if let Some(ref matches) = matches.subcommand_matches("getbalance") {
             if let Some(address) = matches.value_of("address") {
-                let address = String::from(address);
+                let address = address.as_bytes();
                 let bc = Blockchain::new()?;
-                let utxos = bc.find_UTXO(&address);
+                let utxos = bc.find_UTXO(address);
 
                 let mut balance = 0;
                 for out in utxos {
                     balance += out.value;
                 }
-                println!("Balance of '{}': {}\n", address, balance);
+                println!("Balance: {}\n", balance);
             }
         }
 

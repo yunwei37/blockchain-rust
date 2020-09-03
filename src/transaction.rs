@@ -2,6 +2,7 @@ use super::*;
 use crate::blockchain::*;
 use crate::wallets::*;
 use bincode::serialize;
+use bitcoincash_addr::Address;
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
 use failure::format_err;
@@ -14,14 +15,15 @@ const SUBSIDY: i32 = 10;
 pub struct TXInput {
     pub txid: String,
     pub vout: i32,
-    pub script_sig: String,
+    pub signature: String,
+    pub pub_key: Vec<u8>,
 }
 
 /// TXOutput represents a transaction output
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TXOutput {
     pub value: i32,
-    pub script_pub_key: String,
+    pub pub_key_hash: Vec<u8>,
 }
 
 /// Transaction represents a Bitcoin transaction
@@ -37,7 +39,18 @@ impl Transaction {
     pub fn new_UTXO(from: &str, to: &str, amount: i32, bc: &Blockchain) -> Result<Transaction> {
         info!("new UTXO Transaction from: {} to: {}", from, to);
         let mut vin = Vec::new();
-        let acc_v = bc.find_spendable_outputs(from, amount);
+
+        let wallets = Wallets::new()?;
+        let e = Err(format_err!("wallet not found"));
+        let wallet = match wallets.get_wallet(from) {
+            Some(w) => w,
+            None => return e,
+        };
+
+        let mut pub_key_hash = wallet.public_key.clone();
+        hash_pub_key(&mut pub_key_hash);
+
+        let acc_v = bc.find_spendable_outputs(&pub_key_hash, amount);
 
         if acc_v.0 < amount {
             error!("Not Enough balance");
@@ -52,21 +65,16 @@ impl Transaction {
                 let input = TXInput {
                     txid: tx.0.clone(),
                     vout: out,
-                    script_sig: String::from(from),
+                    signature: String::new(),
+                    pub_key: wallet.public_key.clone(),
                 };
                 vin.push(input);
             }
         }
 
-        let mut vout = vec![TXOutput {
-            value: amount,
-            script_pub_key: String::from(to),
-        }];
+        let mut vout = vec![TXOutput::new(amount, to.to_string())?];
         if acc_v.0 > amount {
-            vout.push(TXOutput {
-                value: acc_v.0 - amount,
-                script_pub_key: String::from(from),
-            })
+            vout.push(TXOutput::new(acc_v.0 - amount, from.to_string())?)
         }
 
         let mut tx = Transaction {
@@ -89,12 +97,10 @@ impl Transaction {
             vin: vec![TXInput {
                 txid: String::new(),
                 vout: -1,
-                script_sig: data,
+                signature: String::new(),
+                pub_key: Vec::from(data.as_bytes()),
             }],
-            vout: vec![TXOutput {
-                value: SUBSIDY,
-                script_pub_key: to,
-            }],
+            vout: vec![TXOutput::new(SUBSIDY, to)?],
         };
         tx.set_id()?;
         Ok(tx)
@@ -115,34 +121,33 @@ impl Transaction {
     }
 }
 
-
 impl TXInput {
-
     /// UsesKey checks whether the address initiated the transaction
-    pub fn uses_key(&self, pub_key_hash: &str) -> bool {
-        let pubkeyhash = (self.public_key).to_string();
+    pub fn uses_key(&self, pub_key_hash: &[u8]) -> bool {
+        let mut pubkeyhash = self.pub_key.clone();
+        hash_pub_key(&mut pubkeyhash);
         pubkeyhash == pub_key_hash
     }
 }
 
 impl TXOutput {
     /// IsLockedWithKey checks if the output can be used by the owner of the pubkey
-    pub fn is_locked_with_key(&self, pub_key_hash:String) -> bool {
+    pub fn is_locked_with_key(&self, pub_key_hash: &[u8]) -> bool {
         self.pub_key_hash == pub_key_hash
     }
     /// Lock signs the output
-    fn lock(&mut self, address:&str) -> Result<()>{
-        let pub_key_hash = Address::decode(address)?.body;
-        self.pub_key_hash = String::from_utf8(pub_key_hash)?;
+    fn lock(&mut self, address: &str) -> Result<()> {
+        let pub_key_hash = Address::decode(address).unwrap().body;
+        self.pub_key_hash = pub_key_hash;
         Ok(())
     }
-    
-    pub fn new(value:i32, address:String) -> Result<Self> {
-        let mut txo = TXOutput{
+
+    pub fn new(value: i32, address: String) -> Result<Self> {
+        let mut txo = TXOutput {
             value,
-            pub_key_hash: String::new(),
+            pub_key_hash: Vec::new(),
         };
-        txo.lock(&address);
+        txo.lock(&address)?;
         Ok(txo)
     }
 }

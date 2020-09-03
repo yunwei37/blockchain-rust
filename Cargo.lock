@@ -114,6 +114,7 @@ dependencies = [
  "env_logger",
  "failure",
  "log",
+ "rand 0.4.6",
  "rust-crypto",
  "serde",
  "sha2",
