@@ -1,5 +1,6 @@
 use super::*;
 use crate::blockchain::*;
+use crate::wallets::*;
 use bincode::serialize;
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
@@ -114,16 +115,34 @@ impl Transaction {
     }
 }
 
+
 impl TXInput {
-    /// CanUnlockOutputWith checks whether the address initiated the transaction
-    pub fn can_unlock_output_with(&self, unlockingData: &str) -> bool {
-        self.script_sig == unlockingData
+
+    /// UsesKey checks whether the address initiated the transaction
+    pub fn uses_key(&self, pub_key_hash: &str) -> bool {
+        let pubkeyhash = (self.public_key).to_string();
+        pubkeyhash == pub_key_hash
     }
 }
 
 impl TXOutput {
-    /// CanBeUnlockedWith checks if the output can be unlocked with the provided data
-    pub fn can_be_unlock_with(&self, unlockingData: &str) -> bool {
-        self.script_pub_key == unlockingData
+    /// IsLockedWithKey checks if the output can be used by the owner of the pubkey
+    pub fn is_locked_with_key(&self, pub_key_hash:String) -> bool {
+        self.pub_key_hash == pub_key_hash
+    }
+    /// Lock signs the output
+    fn lock(&mut self, address:&str) -> Result<()>{
+        let pub_key_hash = Address::decode(address)?.body;
+        self.pub_key_hash = String::from_utf8(pub_key_hash)?;
+        Ok(())
+    }
+    
+    pub fn new(value:i32, address:String) -> Result<Self> {
+        let mut txo = TXOutput{
+            value,
+            pub_key_hash: String::new(),
+        };
+        txo.lock(&address);
+        Ok(txo)
     }
 }

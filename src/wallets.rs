@@ -1,50 +1,53 @@
-#![cfg(feature = "bitcoin_hashes")]
-#![cfg(feature = "rand")]
-
-extern crate bitcoin_hashes;
-extern crate rand;
-extern crate secp256k1;
-
 use super::*;
 use bincode::{deserialize, serialize};
-use bitcoin_hashes::hash160::Hash as Hash160;
-use bitcoin_hashes::sha256;
 use bitcoincash_addr::Address;
+use crypto::ed25519;
 use crypto::ripemd160::Ripemd160;
+use crypto::digest::Digest;
 use crypto::sha2::Sha256;
-use rand::rngs::OsRng;
-use secp256k1::{key, Message, Secp256k1};
 use sled;
 use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
+use std::time::SystemTime;
 
 const VERSION: u8 = 0;
 const addressChecksumLen: usize = 4;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Wallet {
-    secret_key: key::SecretKey,
-    public_key: key::PublicKey,
+    secret_key: Vec<u8>,
+    public_key: Vec<u8>,
 }
 
 impl Wallet {
     fn new() -> Self {
-        let secp = Secp256k1::new();
-        let mut rng = OsRng::new().expect("OsRng");
-        let (secret_key, public_key) = secp.generate_keypair(&mut rng);
+        let (secret_key, public_key) = ed25519::keypair(&vec![0]);
+        let secret_key = secret_key.to_vec();
+        let public_key = public_key.to_vec();
         Wallet {
             secret_key,
             public_key,
         }
     }
 
-    fn get_address(&self) -> Vec<u8> {
-        let pubkeyhash = Hash160::hash(self.public_key).to_vec();
+    fn get_address(&self) -> String {
+        let mut pub_hash:Vec<u8> = self.public_key.clone();
+        hash_pub_key(&mut pub_hash);
         let address = Address {
-            body: pubkeyhash,
+            body: pub_hash,
             ..Default::default()
         };
         address.encode().unwrap()
     }
+}
+
+pub fn hash_pub_key(pubKey: &mut Vec<u8>){
+    let mut hasher1 = Sha256::new();
+    hasher1.input(pubKey);
+    hasher1.result(pubKey);
+    let mut hasher2 = Ripemd160::new();
+    hasher2.input(pubKey);
+    hasher2.result(pubKey);
 }
 
 pub struct Wallets {
@@ -59,12 +62,13 @@ impl Wallets {
         };
         let db = sled::open("data/wallets")?;
 
-        for i in db.into_iter()? {
+        for item in db.into_iter() {
+            let i = item?;
             let address = String::from_utf8(i.0.to_vec())?;
-            let wallet = deserialize(i.1.to_vec())?;
+            let wallet = deserialize(&i.1.to_vec())?;
             wlt.wallets.insert(address, wallet);
         }
-        OK(wlt)
+        Ok(wlt)
     }
 
     /// CreateWallet adds a Wallet to Wallets
@@ -78,15 +82,15 @@ impl Wallets {
 
     /// GetAddresses returns an array of addresses stored in the wallet file
     pub fn get_all_addresses(&self) -> Vec<String> {
-        let addresses = Vec::<String>::new();
-        for (address, _) in self.wallets {
-            addresses.push(address);
+        let mut addresses = Vec::<String>::new();
+        for (address, _) in &self.wallets {
+            addresses.push(address.clone());
         }
         addresses
     }
 
     /// GetWallet returns a Wallet by its address
-    pub fn get_wallet(&self, address: &str) -> Option<Wallet> {
+    pub fn get_wallet(&self, address: &str) -> Option<&Wallet> {
         self.wallets.get(address)
     }
 
@@ -94,19 +98,12 @@ impl Wallets {
     pub fn save_all(&self) -> Result<()> {
         let db = sled::open("data/wallets")?;
 
-        for (address, wallet) in self.wallets {
+        for (address, wallet) in &self.wallets {
             let data = serialize(wallet)?;
-            db.insert(wallet.get_address(), data)?;
+            db.insert(address, data)?;
         }
 
         db.flush()?;
         Ok(())
     }
-}
-
-fn test() {
-    let message = Message::from_hashed_data("Hello World!".as_bytes());
-
-    let sig = secp.sign(&message, &secret_key);
-    assert!(secp.verify(&message, &sig, &public_key).is_ok());
 }
