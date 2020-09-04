@@ -1,5 +1,5 @@
 use super::*;
-use crate::blockchain::*;
+use crate::utxoset::*;
 use crate::wallets::*;
 use bincode::serialize;
 use bitcoincash_addr::Address;
@@ -28,6 +28,12 @@ pub struct TXOutput {
     pub pub_key_hash: Vec<u8>,
 }
 
+// TXOutputs collects TXOutput
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TXOutputs {
+    pub outputs: Vec<TXOutput>,
+}
+
 /// Transaction represents a Bitcoin transaction
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Transaction {
@@ -38,7 +44,7 @@ pub struct Transaction {
 
 impl Transaction {
     /// NewUTXOTransaction creates a new transaction
-    pub fn new_UTXO(from: &str, to: &str, amount: i32, bc: &Blockchain) -> Result<Transaction> {
+    pub fn new_UTXO(from: &str, to: &str, amount: i32, utxo: &UTXOSet) -> Result<Transaction> {
         info!("new UTXO Transaction from: {} to: {}", from, to);
         let mut vin = Vec::new();
 
@@ -54,7 +60,7 @@ impl Transaction {
         let mut pub_key_hash = wallet.public_key.clone();
         hash_pub_key(&mut pub_key_hash);
 
-        let acc_v = bc.find_spendable_outputs(&pub_key_hash, amount);
+        let acc_v = utxo.find_spendable_outputs(&pub_key_hash, amount)?;
 
         if acc_v.0 < amount {
             error!("Not Enough balance");
@@ -87,15 +93,16 @@ impl Transaction {
             vout,
         };
         tx.id = tx.hash()?;
-        bc.sign_transacton(&mut tx, &wallet.secret_key)?;
+        utxo.blockchain
+            .sign_transacton(&mut tx, &wallet.secret_key)?;
         Ok(tx)
     }
 
     /// NewCoinbaseTX creates a new coinbase transaction
     pub fn new_coinbase(to: String, mut data: String) -> Result<Transaction> {
         info!("new coinbase Transaction to: {}", to);
-        if data == String::from("") {
-            data += &format!("Reward to '{}'", to);
+        if data.is_empty() {
+            data = format!("Reward to '{}'", to);
         }
         let wallets = Wallets::new()?;
         if let None = wallets.get_wallet(&to) {
