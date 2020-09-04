@@ -21,6 +21,7 @@ impl Cli {
             .about("reimplement blockchain_go in rust: a simple blockchain for learning")
             .subcommand(App::new("printchain").about("print all the chain blocks"))
             .subcommand(App::new("createwallet").about("create a wallet"))
+            .subcommand(App::new("listaddresses").about("list all addresses"))
             .subcommand(
                 App::new("getbalance")
                     .about("get balance in the blockchain")
@@ -64,7 +65,16 @@ impl Cli {
         if let Some(_) = matches.subcommand_matches("printchain") {
             let bc = Blockchain::new()?;
             for b in bc.iter() {
-                println!("block: {:#?}", b);
+                println!("{:#?}", b);
+            }
+        }
+
+        if let Some(_) = matches.subcommand_matches("listaddresses") {
+            let ws = Wallets::new()?;
+            let addresses = ws.get_all_addresses();
+            println!("addresses: ");
+            for ad in addresses {
+                println!("{}", ad);
             }
         }
 

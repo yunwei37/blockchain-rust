@@ -18,7 +18,7 @@ pub struct Wallet {
 
 impl Wallet {
     fn new() -> Self {
-        let mut key: [u8; 64] = [0; 64];
+        let mut key: [u8; 32] = [0; 32];
         let mut rand = rand::OsRng::new().unwrap();
         rand.fill_bytes(&mut key);
         let (secret_key, public_key) = ed25519::keypair(&key);
@@ -71,6 +71,7 @@ impl Wallets {
             let wallet = deserialize(&i.1.to_vec())?;
             wlt.wallets.insert(address, wallet);
         }
+        drop(db);
         Ok(wlt)
     }
 
@@ -107,6 +108,7 @@ impl Wallets {
         }
 
         db.flush()?;
+        drop(db);
         Ok(())
     }
 }
@@ -135,7 +137,6 @@ mod test {
         let wa1 = ws.create_wallet();
         let w1 = ws.get_wallet(&wa1).unwrap().clone();
         ws.save_all().unwrap();
-        drop(ws);
 
         let ws2 = Wallets::new().unwrap();
         let w2 = ws2.get_wallet(&wa1).unwrap();
@@ -145,14 +146,19 @@ mod test {
     #[test]
     #[should_panic]
     fn test_wallets_not_exist() {
-        let mut ws = Wallets::new().unwrap();
-        let wa1 = ws.create_wallet();
-        ws.get_wallet(&wa1).unwrap();
-        ws.save_all().unwrap();
-        drop(ws);
-
         let w3 = Wallet::new();
         let ws2 = Wallets::new().unwrap();
         ws2.get_wallet(&w3.get_address()).unwrap();
+    }
+
+    #[test]
+    fn test_signature() {
+        let w =  Wallet::new();
+        let signature = ed25519::signature("test".as_bytes(), &w.secret_key);
+        assert!(ed25519::verify(
+            "test".as_bytes(),
+            &w.public_key,
+            &signature
+        ));
     }
 }

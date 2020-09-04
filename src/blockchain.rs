@@ -169,6 +169,7 @@ impl Blockchain {
         unspend_TXs
     }
 
+    /// FindTransaction finds a transaction by its ID
     pub fn find_transacton(&self, id: &str) -> Result<Transaction> {
         for b in self.iter() {
             for tx in b.get_transaction() {
@@ -189,12 +190,14 @@ impl Blockchain {
         Ok(prev_TXs)
     }
 
+    /// SignTransaction signs inputs of a Transaction
     pub fn sign_transacton(&self, tx: &mut Transaction, private_key: &[u8]) -> Result<()> {
         let prev_TXs = self.get_prev_TXs(tx)?;
         tx.sign(private_key, prev_TXs)?;
         Ok(())
     }
 
+    /// VerifyTransaction verifies transaction input signatures
     pub fn verify_transacton(&self, tx: &mut Transaction) -> Result<bool> {
         let prev_TXs = self.get_prev_TXs(tx)?;
         tx.verify(prev_TXs)

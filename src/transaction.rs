@@ -43,10 +43,12 @@ impl Transaction {
         let mut vin = Vec::new();
 
         let wallets = Wallets::new()?;
-        let e = Err(format_err!("wallet not found"));
         let wallet = match wallets.get_wallet(from) {
             Some(w) => w,
-            None => return e,
+            None => return Err(format_err!("from wallet not found")),
+        };
+        if let None = wallets.get_wallet(&to) {
+            return Err(format_err!("to wallet not found"));
         };
 
         let mut pub_key_hash = wallet.public_key.clone();
@@ -95,6 +97,11 @@ impl Transaction {
         if data == String::from("") {
             data += &format!("Reward to '{}'", to);
         }
+        let wallets = Wallets::new()?;
+        if let None = wallets.get_wallet(&to) {
+            return Err(format_err!("coinbase wallet not found"));
+        };
+
         let mut tx = Transaction {
             id: String::new(),
             vin: vec![TXInput {
@@ -245,5 +252,26 @@ impl TXOutput {
         };
         txo.lock(&address)?;
         Ok(txo)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_signature() {
+        let mut ws = Wallets::new().unwrap();
+        let wa1 = ws.create_wallet();
+        let w = ws.get_wallet(&wa1).unwrap().clone();
+        ws.save_all().unwrap();
+        drop(ws);
+
+        let data = String::from("test");
+        let tx = Transaction::new_coinbase(wa1, data).unwrap();
+        assert!(tx.is_coinbase());
+
+        let signature = ed25519::signature(tx.id.as_bytes(), &w.secret_key);
+        assert!(ed25519::verify(tx.id.as_bytes(), &w.public_key, &signature));
     }
 }
