@@ -1,6 +1,7 @@
 use super::*;
 use crate::blockchain::*;
 use crate::transaction::*;
+use crate::wallets::*;
 use clap::{App, Arg};
 use std::process::exit;
 
@@ -18,6 +19,7 @@ impl Cli {
             .author("yunwei37. 1067852565@qq.com")
             .about("reimplement blockchain_go in rust: a simple blockchain for learning")
             .subcommand(App::new("printchain").about("print all the chain blocks"))
+            .subcommand(App::new("createwallet").about("create a wallet"))
             .subcommand(
                 App::new("getbalance")
                     .about("get balance in the blockchain")
@@ -49,6 +51,13 @@ impl Cli {
                 }
                 println!("Balance: {}\n", balance);
             }
+        }
+
+        if let Some(_) = matches.subcommand_matches("createwallet") {
+            let mut ws = Wallets::new()?;
+            let address = ws.create_wallet();
+            ws.save_all()?;
+            println!("success: address {}", address);
         }
 
         if let Some(_) = matches.subcommand_matches("printchain") {

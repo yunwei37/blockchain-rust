@@ -1,6 +1,6 @@
 use super::*;
 use bincode::{deserialize, serialize};
-use bitcoincash_addr::Address;
+use bitcoincash_addr::*;
 use crypto::digest::Digest;
 use crypto::ed25519;
 use crypto::ripemd160::Ripemd160;
@@ -35,6 +35,8 @@ impl Wallet {
         hash_pub_key(&mut pub_hash);
         let address = Address {
             body: pub_hash,
+            scheme: Scheme::Base58,
+            hash_type: HashType::Script,
             ..Default::default()
         };
         address.encode().unwrap()
@@ -47,6 +49,7 @@ pub fn hash_pub_key(pubKey: &mut Vec<u8>) {
     hasher1.result(pubKey);
     let mut hasher2 = Ripemd160::new();
     hasher2.input(pubKey);
+    pubKey.resize(20, 0);
     hasher2.result(pubKey);
 }
 
@@ -113,10 +116,43 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_create_wallet() {
+    fn test_create_wallet_and_hash() {
         let w1 = Wallet::new();
         let w2 = Wallet::new();
         assert_ne!(w1, w2);
         assert_ne!(w1.get_address(), w2.get_address());
+
+        let mut p2 = w2.public_key.clone();
+        hash_pub_key(&mut p2);
+        assert_eq!(p2.len(), 20);
+        let pub_key_hash = Address::decode(&w2.get_address()).unwrap().body;
+        assert_eq!(pub_key_hash, p2);
+    }
+
+    #[test]
+    fn test_wallets() {
+        let mut ws = Wallets::new().unwrap();
+        let wa1 = ws.create_wallet();
+        let w1 = ws.get_wallet(&wa1).unwrap().clone();
+        ws.save_all().unwrap();
+        drop(ws);
+
+        let mut ws2 = Wallets::new().unwrap();
+        let w2 = ws2.get_wallet(&wa1).unwrap();
+        assert_eq!(&w1, w2);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_wallets_not_exist() {
+        let mut ws = Wallets::new().unwrap();
+        let wa1 = ws.create_wallet();
+        ws.get_wallet(&wa1).unwrap().clone();
+        ws.save_all().unwrap();
+        drop(ws);
+
+        let w3 = Wallet::new();
+        let ws2 = Wallets::new().unwrap();
+        ws2.get_wallet(&w3.get_address()).unwrap();
     }
 }

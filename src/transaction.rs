@@ -138,6 +138,7 @@ impl TXOutput {
     /// Lock signs the output
     fn lock(&mut self, address: &str) -> Result<()> {
         let pub_key_hash = Address::decode(address).unwrap().body;
+        debug!("lock: {}", address);
         self.pub_key_hash = pub_key_hash;
         Ok(())
     }
