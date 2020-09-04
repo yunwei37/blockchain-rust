@@ -231,15 +231,6 @@ impl Transaction {
     }
 }
 
-impl TXInput {
-    /// UsesKey checks whether the address initiated the transaction
-    pub fn uses_key(&self, pub_key_hash: &[u8]) -> bool {
-        let mut pubkeyhash = self.pub_key.clone();
-        hash_pub_key(&mut pubkeyhash);
-        pubkeyhash == pub_key_hash
-    }
-}
-
 impl TXOutput {
     /// IsLockedWithKey checks if the output can be used by the owner of the pubkey
     pub fn is_locked_with_key(&self, pub_key_hash: &[u8]) -> bool {

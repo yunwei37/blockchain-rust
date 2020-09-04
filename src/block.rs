@@ -3,6 +3,7 @@ use crate::transaction::Transaction;
 use bincode::serialize;
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
+use merkle_cbt::merkle_tree::Merge;
 use merkle_cbt::merkle_tree::CBMT;
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
@@ -66,17 +67,14 @@ impl Block {
         Ok(())
     }
 
-    fn hash_transactions(&self) -> Result<[u8; 32]> {
-        let mut tx_hashs = Vec::new();
+    fn hash_transactions(&self) -> Result<Vec<u8>> {
+        let mut transactions = Vec::new();
         for tx in &self.transactions {
-            tx_hashs.push(tx.hash()?);
+            transactions.push(tx.hash()?.as_bytes().to_owned());
         }
-        let mut hasher = Sha256::new();
-        hasher.input(&serialize(&tx_hashs)?);
-        let mut tx_hash = [0; 32];
-        hasher.result(&mut tx_hash);
+        let tree = CBMT::<Vec<u8>, MergeVu8>::build_merkle_tree(transactions);
 
-        Ok(tx_hash)
+        Ok(tree.root())
     }
 
     fn prepare_hash_data(&self) -> Result<Vec<u8>> {
@@ -99,5 +97,20 @@ impl Block {
         let mut vec1: Vec<u8> = Vec::new();
         vec1.resize(TARGET_HEXS, '0' as u8);
         Ok(&hasher.result_str()[0..TARGET_HEXS] == String::from_utf8(vec1)?)
+    }
+}
+
+struct MergeVu8 {}
+
+impl Merge for MergeVu8 {
+    type Item = Vec<u8>;
+    fn merge(left: &Self::Item, right: &Self::Item) -> Self::Item {
+        let mut hasher = Sha256::new();
+        let mut data: Vec<u8> = left.clone();
+        data.append(&mut right.clone());
+        hasher.input(&data);
+        let mut re: [u8; 32] = [0; 32];
+        hasher.result(&mut re);
+        re.to_vec()
     }
 }
