@@ -25,7 +25,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-      - name: Run tests
-        run: cargo test  --verbose -- --test-threads=1
-      - name: Check code format
-        run: cargo fmt --all -- --check
+    - name: Run tests
+      run: cargo test  --verbose -- --test-threads=1
+    - name: Check code format
+      run: cargo fmt --all -- --check
