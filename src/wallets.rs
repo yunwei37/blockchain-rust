@@ -153,7 +153,7 @@ mod test {
 
     #[test]
     fn test_signature() {
-        let w =  Wallet::new();
+        let w = Wallet::new();
         let signature = ed25519::signature("test".as_bytes(), &w.secret_key);
         assert!(ed25519::verify(
             "test".as_bytes(),
