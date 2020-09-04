@@ -137,7 +137,7 @@ mod test {
         ws.save_all().unwrap();
         drop(ws);
 
-        let mut ws2 = Wallets::new().unwrap();
+        let ws2 = Wallets::new().unwrap();
         let w2 = ws2.get_wallet(&wa1).unwrap();
         assert_eq!(&w1, w2);
     }
@@ -147,7 +147,7 @@ mod test {
     fn test_wallets_not_exist() {
         let mut ws = Wallets::new().unwrap();
         let wa1 = ws.create_wallet();
-        ws.get_wallet(&wa1).unwrap().clone();
+        ws.get_wallet(&wa1).unwrap();
         ws.save_all().unwrap();
         drop(ws);
 

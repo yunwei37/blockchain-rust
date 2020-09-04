@@ -2,6 +2,7 @@ use super::*;
 use crate::block::*;
 use crate::transaction::*;
 use bincode::{deserialize, serialize};
+use failure::format_err;
 use sled;
 use std::collections::HashMap;
 
@@ -57,8 +58,15 @@ impl Blockchain {
     }
 
     /// MineBlock mines a new block with the provided transactions
-    pub fn mine_block(&mut self, transactions: Vec<Transaction>) -> Result<()> {
+    pub fn mine_block(&mut self, mut transactions: Vec<Transaction>) -> Result<()> {
         info!("mine a new block");
+
+        for tx in &mut transactions {
+            if !self.verify_transacton(tx)? {
+                return Err(format_err!("ERROR: Invalid transaction"));
+            }
+        }
+
         let lasthash = self.db.get("LAST")?.unwrap();
 
         let newblock = Block::new_block(transactions, String::from_utf8(lasthash.to_vec())?)?;
@@ -159,6 +167,37 @@ impl Blockchain {
         }
 
         unspend_TXs
+    }
+
+    pub fn find_transacton(&self, id: &str) -> Result<Transaction> {
+        for b in self.iter() {
+            for tx in b.get_transaction() {
+                if tx.id == id {
+                    return Ok(tx.clone());
+                }
+            }
+        }
+        Err(format_err!("Transaction is not found"))
+    }
+
+    fn get_prev_TXs(&self, tx: &Transaction) -> Result<HashMap<String, Transaction>> {
+        let mut prev_TXs = HashMap::new();
+        for vin in &tx.vin {
+            let prev_TX = self.find_transacton(&vin.txid)?;
+            prev_TXs.insert(prev_TX.id.clone(), prev_TX);
+        }
+        Ok(prev_TXs)
+    }
+
+    pub fn sign_transacton(&self, tx: &mut Transaction, private_key: &[u8]) -> Result<()> {
+        let prev_TXs = self.get_prev_TXs(tx)?;
+        tx.sign(private_key, prev_TXs)?;
+        Ok(())
+    }
+
+    pub fn verify_transacton(&self, tx: &mut Transaction) -> Result<bool> {
+        let prev_TXs = self.get_prev_TXs(tx)?;
+        tx.verify(prev_TXs)
     }
 }
 

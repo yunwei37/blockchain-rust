@@ -2,6 +2,7 @@ use super::*;
 use crate::blockchain::*;
 use crate::transaction::*;
 use crate::wallets::*;
+use bitcoincash_addr::Address;
 use clap::{App, Arg};
 use std::process::exit;
 
@@ -41,9 +42,9 @@ impl Cli {
 
         if let Some(ref matches) = matches.subcommand_matches("getbalance") {
             if let Some(address) = matches.value_of("address") {
-                let address = address.as_bytes();
+                let pub_key_hash = Address::decode(address).unwrap().body;
                 let bc = Blockchain::new()?;
-                let utxos = bc.find_UTXO(address);
+                let utxos = bc.find_UTXO(&pub_key_hash);
 
                 let mut balance = 0;
                 for out in utxos {

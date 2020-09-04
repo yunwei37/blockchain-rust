@@ -4,9 +4,11 @@ use crate::wallets::*;
 use bincode::serialize;
 use bitcoincash_addr::Address;
 use crypto::digest::Digest;
+use crypto::ed25519;
 use crypto::sha2::Sha256;
 use failure::format_err;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 const SUBSIDY: i32 = 10;
 
@@ -15,7 +17,7 @@ const SUBSIDY: i32 = 10;
 pub struct TXInput {
     pub txid: String,
     pub vout: i32,
-    pub signature: String,
+    pub signature: Vec<u8>,
     pub pub_key: Vec<u8>,
 }
 
@@ -65,7 +67,7 @@ impl Transaction {
                 let input = TXInput {
                     txid: tx.0.clone(),
                     vout: out,
-                    signature: String::new(),
+                    signature: Vec::new(),
                     pub_key: wallet.public_key.clone(),
                 };
                 vin.push(input);
@@ -82,7 +84,8 @@ impl Transaction {
             vin,
             vout,
         };
-        tx.set_id()?;
+        tx.id = tx.hash()?;
+        bc.sign_transacton(&mut tx, &wallet.secret_key)?;
         Ok(tx)
     }
 
@@ -97,27 +100,119 @@ impl Transaction {
             vin: vec![TXInput {
                 txid: String::new(),
                 vout: -1,
-                signature: String::new(),
+                signature: Vec::new(),
                 pub_key: Vec::from(data.as_bytes()),
             }],
             vout: vec![TXOutput::new(SUBSIDY, to)?],
         };
-        tx.set_id()?;
+        tx.id = tx.hash()?;
         Ok(tx)
-    }
-
-    /// SetID sets ID of a transaction
-    fn set_id(&mut self) -> Result<()> {
-        let mut hasher = Sha256::new();
-        let data = serialize(self)?;
-        hasher.input(&data);
-        self.id = hasher.result_str();
-        Ok(())
     }
 
     /// IsCoinbase checks whether the transaction is coinbase
     pub fn is_coinbase(&self) -> bool {
         self.vin.len() == 1 && self.vin[0].txid.is_empty() && self.vin[0].vout == -1
+    }
+
+    pub fn verify(&mut self, prev_TXs: HashMap<String, Transaction>) -> Result<bool> {
+        if self.is_coinbase() {
+            return Ok(true);
+        }
+
+        for vin in &self.vin {
+            if prev_TXs.get(&vin.txid).unwrap().id.is_empty() {
+                return Err(format_err!("ERROR: Previous transaction is not correct"));
+            }
+        }
+
+        let mut tx_copy = self.trim_copy();
+
+        for in_id in 0..self.vin.len() {
+            let prev_Tx = prev_TXs.get(&self.vin[in_id].txid).unwrap();
+            tx_copy.vin[in_id].signature.clear();
+            tx_copy.vin[in_id].pub_key = prev_Tx.vout[self.vin[in_id].vout as usize]
+                .pub_key_hash
+                .clone();
+            tx_copy.id = tx_copy.hash()?;
+            tx_copy.vin[in_id].pub_key = Vec::new();
+
+            if !ed25519::verify(
+                &tx_copy.id.as_bytes(),
+                &self.vin[in_id].pub_key,
+                &self.vin[in_id].signature,
+            ) {
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
+    }
+
+    pub fn sign(
+        &mut self,
+        private_key: &[u8],
+        prev_TXs: HashMap<String, Transaction>,
+    ) -> Result<()> {
+        if self.is_coinbase() {
+            return Ok(());
+        }
+
+        for vin in &self.vin {
+            if prev_TXs.get(&vin.txid).unwrap().id.is_empty() {
+                return Err(format_err!("ERROR: Previous transaction is not correct"));
+            }
+        }
+
+        let mut tx_copy = self.trim_copy();
+
+        for in_id in 0..tx_copy.vin.len() {
+            let prev_Tx = prev_TXs.get(&tx_copy.vin[in_id].txid).unwrap();
+            tx_copy.vin[in_id].signature.clear();
+            tx_copy.vin[in_id].pub_key = prev_Tx.vout[tx_copy.vin[in_id].vout as usize]
+                .pub_key_hash
+                .clone();
+            tx_copy.id = tx_copy.hash()?;
+            tx_copy.vin[in_id].pub_key = Vec::new();
+            let signature = ed25519::signature(tx_copy.id.as_bytes(), private_key);
+            self.vin[in_id].signature = signature.to_vec();
+        }
+
+        Ok(())
+    }
+
+    fn hash(&mut self) -> Result<String> {
+        self.id = String::new();
+        let data = serialize(self)?;
+        let mut hasher = Sha256::new();
+        hasher.input(&data[..]);
+        Ok(hasher.result_str())
+    }
+
+    fn trim_copy(&self) -> Transaction {
+        let mut vin = Vec::new();
+        let mut vout = Vec::new();
+
+        for v in &self.vin {
+            vin.push(TXInput {
+                txid: v.txid.clone(),
+                vout: v.vout.clone(),
+                signature: Vec::new(),
+                pub_key: Vec::new(),
+            })
+        }
+
+        for v in &self.vout {
+            vout.push(TXOutput {
+                value: v.value,
+                pub_key_hash: v.pub_key_hash.clone(),
+            })
+        }
+
+        Transaction {
+            id: self.id.clone(),
+            vin,
+            vout,
+        }
     }
 }
 
