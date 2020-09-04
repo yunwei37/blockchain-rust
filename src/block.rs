@@ -3,6 +3,7 @@ use crate::transaction::Transaction;
 use bincode::serialize;
 use crypto::digest::Digest;
 use crypto::sha2::Sha256;
+use merkle_cbt::merkle_tree::CBMT;
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 
@@ -65,10 +66,23 @@ impl Block {
         Ok(())
     }
 
+    fn hash_transactions(&self) -> Result<[u8; 32]> {
+        let mut tx_hashs = Vec::new();
+        for tx in &self.transactions {
+            tx_hashs.push(tx.hash()?);
+        }
+        let mut hasher = Sha256::new();
+        hasher.input(&serialize(&tx_hashs)?);
+        let mut tx_hash = [0; 32];
+        hasher.result(&mut tx_hash);
+
+        Ok(tx_hash)
+    }
+
     fn prepare_hash_data(&self) -> Result<Vec<u8>> {
         let content = (
             self.prev_block_hash.clone(),
-            self.transactions.clone(),
+            self.hash_transactions()?,
             self.timestamp,
             TARGET_HEXS,
             self.nonce,

@@ -194,9 +194,10 @@ impl Transaction {
         Ok(())
     }
 
-    fn hash(&mut self) -> Result<String> {
-        self.id = String::new();
-        let data = serialize(self)?;
+    pub fn hash(&self) -> Result<String> {
+        let mut copy = self.clone();
+        copy.id = String::new();
+        let data = serialize(&copy)?;
         let mut hasher = Sha256::new();
         hasher.input(&data[..]);
         Ok(hasher.result_str())
