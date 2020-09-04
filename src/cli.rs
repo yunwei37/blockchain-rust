@@ -105,9 +105,12 @@ impl Cli {
                 println!("amount in send not supply!: usage\n{}", matches.usage());
                 exit(1)
             };
+
             let mut bc = Blockchain::new()?;
             let tx = Transaction::new_UTXO(from, to, amount, &bc)?;
-            bc.mine_block(vec![tx])?;
+            let cbtx = Transaction::new_coinbase(from.to_string(), String::from("reward!"))?;
+
+            bc.mine_block(vec![cbtx, tx])?;
             println!("success!");
         }
 

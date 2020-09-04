@@ -199,6 +199,9 @@ impl Blockchain {
 
     /// VerifyTransaction verifies transaction input signatures
     pub fn verify_transacton(&self, tx: &mut Transaction) -> Result<bool> {
+        if tx.is_coinbase() {
+            return Ok(true);
+        }
         let prev_TXs = self.get_prev_TXs(tx)?;
         tx.verify(prev_TXs)
     }
