@@ -122,7 +122,9 @@ impl Cli {
 
             let bc = Blockchain::new()?;
             let mut utxo_set = UTXOSet { blockchain: bc };
-            let tx = Transaction::new_UTXO(from, to, amount, &utxo_set)?;
+            let wallets = Wallets::new()?;
+            let wallet = wallets.get_wallet(from).unwrap();
+            let tx = Transaction::new_UTXO(wallet, to, amount, &utxo_set)?;
             let cbtx = Transaction::new_coinbase(from.to_string(), String::from("reward!"))?;
             let new_block = utxo_set.blockchain.mine_block(vec![cbtx, tx])?;
 

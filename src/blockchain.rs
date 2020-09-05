@@ -70,7 +70,11 @@ impl Blockchain {
 
         let lasthash = self.db.get("LAST")?.unwrap();
 
-        let newblock = Block::new_block(transactions, String::from_utf8(lasthash.to_vec())?)?;
+        let newblock = Block::new_block(
+            transactions,
+            String::from_utf8(lasthash.to_vec())?,
+            self.get_best_height()? + 1,
+        )?;
         self.db.insert(newblock.get_hash(), serialize(&newblock)?)?;
         self.db.insert("LAST", newblock.get_hash().as_bytes())?;
         self.db.flush()?;
@@ -169,6 +173,47 @@ impl Blockchain {
         }
         let prev_TXs = self.get_prev_TXs(tx)?;
         tx.verify(prev_TXs)
+    }
+
+    /// AddBlock saves the block into the blockchain
+    pub fn add_block(&mut self, block: Block) -> Result<()> {
+        let data = serialize(&block)?;
+        if let Some(_) = self.db.get(block.get_hash())? {
+            return Ok(());
+        }
+        self.db.insert(block.get_hash(), serialize(&block)?)?;
+
+        let lastheight = self.get_best_height()?;
+        if block.get_height() > lastheight {
+            self.db.insert("LAST", block.get_hash().as_bytes())?;
+            self.tip = block.get_hash();
+            self.db.flush()?;
+        }
+        Ok(())
+    }
+
+    // GetBlock finds a block by its hash and returns it
+    fn get_block(&self, block_hash: String) -> Result<Block> {
+        let data = self.db.get(block_hash)?.unwrap();
+        let block = deserialize(&data.to_vec())?;
+        Ok(block)
+    }
+
+    /// GetBestHeight returns the height of the latest block
+    fn get_best_height(&self) -> Result<i32> {
+        let lasthash = self.db.get("LAST")?.unwrap();
+        let last_data = self.db.get(lasthash)?.unwrap();
+        let last_block: Block = deserialize(&last_data.to_vec())?;
+        Ok(last_block.get_height())
+    }
+
+    /// GetBlockHashes returns a list of hashes of all the blocks in the chain
+    fn get_block_hashs(&self) -> Vec<String> {
+        let mut list = Vec::new();
+        for b in self.iter() {
+            list.push(b.get_hash());
+        }
+        list
     }
 }
 

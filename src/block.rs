@@ -18,6 +18,7 @@ pub struct Block {
     prev_block_hash: String,
     hash: String,
     nonce: i32,
+    height: i32,
 }
 
 impl Block {
@@ -33,8 +34,16 @@ impl Block {
         &self.transactions
     }
 
+    pub fn get_height(&self) -> i32 {
+        self.height
+    }
+
     /// NewBlock creates and returns Block
-    pub fn new_block(transactions: Vec<Transaction>, prev_block_hash: String) -> Result<Block> {
+    pub fn new_block(
+        transactions: Vec<Transaction>,
+        prev_block_hash: String,
+        height: i32,
+    ) -> Result<Block> {
         let timestamp = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)?
             .as_millis();
@@ -44,6 +53,7 @@ impl Block {
             prev_block_hash,
             hash: String::new(),
             nonce: 0,
+            height,
         };
         block.run_proof_of_work()?;
         Ok(block)
@@ -51,7 +61,7 @@ impl Block {
 
     /// NewGenesisBlock creates and returns genesis Block
     pub fn new_genesis_block(coinbase: Transaction) -> Block {
-        Block::new_block(vec![coinbase], String::new()).unwrap()
+        Block::new_block(vec![coinbase], String::new(), 0).unwrap()
     }
 
     /// Run performs a proof-of-work

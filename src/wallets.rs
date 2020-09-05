@@ -30,7 +30,7 @@ impl Wallet {
         }
     }
 
-    fn get_address(&self) -> String {
+    pub fn get_address(&self) -> String {
         let mut pub_hash: Vec<u8> = self.public_key.clone();
         hash_pub_key(&mut pub_hash);
         let address = Address {
