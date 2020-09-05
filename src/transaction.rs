@@ -7,6 +7,7 @@ use crypto::digest::Digest;
 use crypto::ed25519;
 use crypto::sha2::Sha256;
 use failure::format_err;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -96,9 +97,14 @@ impl Transaction {
     /// NewCoinbaseTX creates a new coinbase transaction
     pub fn new_coinbase(to: String, mut data: String) -> Result<Transaction> {
         info!("new coinbase Transaction to: {}", to);
+        let mut key: [u8; 32] = [0; 32];
         if data.is_empty() {
+            let mut rand = rand::OsRng::new().unwrap();
+            rand.fill_bytes(&mut key);
             data = format!("Reward to '{}'", to);
         }
+        let mut pub_key = Vec::from(data.as_bytes());
+        pub_key.append(&mut Vec::from(key));
 
         let mut tx = Transaction {
             id: String::new(),
@@ -106,7 +112,7 @@ impl Transaction {
                 txid: String::new(),
                 vout: -1,
                 signature: Vec::new(),
-                pub_key: Vec::from(data.as_bytes()),
+                pub_key,
             }],
             vout: vec![TXOutput::new(SUBSIDY, to)?],
         };
@@ -119,7 +125,7 @@ impl Transaction {
         self.vin.len() == 1 && self.vin[0].txid.is_empty() && self.vin[0].vout == -1
     }
 
-    pub fn verify(&mut self, prev_TXs: HashMap<String, Transaction>) -> Result<bool> {
+    pub fn verify(&self, prev_TXs: HashMap<String, Transaction>) -> Result<bool> {
         if self.is_coinbase() {
             return Ok(true);
         }

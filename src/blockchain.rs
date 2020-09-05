@@ -59,10 +59,10 @@ impl Blockchain {
     }
 
     /// MineBlock mines a new block with the provided transactions
-    pub fn mine_block(&mut self, mut transactions: Vec<Transaction>) -> Result<Block> {
+    pub fn mine_block(&mut self, transactions: Vec<Transaction>) -> Result<Block> {
         info!("mine a new block");
 
-        for tx in &mut transactions {
+        for tx in &transactions {
             if !self.verify_transacton(tx)? {
                 return Err(format_err!("ERROR: Invalid transaction"));
             }
@@ -167,7 +167,7 @@ impl Blockchain {
     }
 
     /// VerifyTransaction verifies transaction input signatures
-    pub fn verify_transacton(&self, tx: &mut Transaction) -> Result<bool> {
+    pub fn verify_transacton(&self, tx: &Transaction) -> Result<bool> {
         if tx.is_coinbase() {
             return Ok(true);
         }
@@ -193,7 +193,7 @@ impl Blockchain {
     }
 
     // GetBlock finds a block by its hash and returns it
-    fn get_block(&self, block_hash: String) -> Result<Block> {
+    pub fn get_block(&self, block_hash: &str) -> Result<Block> {
         let data = self.db.get(block_hash)?.unwrap();
         let block = deserialize(&data.to_vec())?;
         Ok(block)
@@ -208,7 +208,7 @@ impl Blockchain {
     }
 
     /// GetBlockHashes returns a list of hashes of all the blocks in the chain
-    fn get_block_hashs(&self) -> Vec<String> {
+    pub fn get_block_hashs(&self) -> Vec<String> {
         let mut list = Vec::new();
         for b in self.iter() {
             list.push(b.get_hash());
