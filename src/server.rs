@@ -13,7 +13,7 @@ use std::sync::*;
 use std::thread;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum Message {
+enum Message {
     Addr(Vec<String>),
     Version(Versionmsg),
     Tx(Txmsg),
@@ -132,7 +132,7 @@ impl Server {
     }
 
     fn replace_in_transit(&self, hashs: Vec<String>) {
-        let mut bit = &mut self.inner.lock().unwrap().blocks_in_transit;
+        let bit = &mut self.inner.lock().unwrap().blocks_in_transit;
         bit.clone_from(&hashs);
     }
 
@@ -172,7 +172,7 @@ impl Server {
             .get_block(block_hash)
     }
 
-    fn verift_tx(&self, tx: &Transaction) -> Result<bool> {
+    fn verify_tx(&self, tx: &Transaction) -> Result<bool> {
         self.inner
             .lock()
             .unwrap()
@@ -286,6 +286,8 @@ impl Server {
             self.send_version(&msg.addr_from)?;
         }
 
+        self.send_addr(&msg.addr_from)?;
+
         if self.node_is_known(&msg.addr_from) {
             self.add_nodes(&msg.addr_from);
         }
@@ -375,8 +377,8 @@ impl Server {
                 loop {
                     let mut txs = Vec::new();
 
-                    for (id, tx) in &mempool {
-                        if self.verift_tx(tx)? {
+                    for (_, tx) in &mempool {
+                        if self.verify_tx(tx)? {
                             txs.push(tx.clone());
                         }
                     }

@@ -181,7 +181,7 @@ impl Blockchain {
         if let Some(_) = self.db.get(block.get_hash())? {
             return Ok(());
         }
-        self.db.insert(block.get_hash(), serialize(&block)?)?;
+        self.db.insert(block.get_hash(), data)?;
 
         let lastheight = self.get_best_height()?;
         if block.get_height() > lastheight {

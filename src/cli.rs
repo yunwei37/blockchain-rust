@@ -1,5 +1,6 @@
 use super::*;
 use crate::blockchain::*;
+use crate::server::*;
 use crate::transaction::*;
 use crate::utxoset::*;
 use crate::wallets::*;
@@ -20,6 +21,9 @@ impl Cli {
             .version("0.1")
             .author("yunwei37. 1067852565@qq.com")
             .about("reimplement blockchain_go in rust: a simple blockchain for learning")
+            .arg(Arg::from_usage(
+                "--mine <miner> 'Enable mining mode and send reward to ADDRESS'",
+            ))
             .subcommand(App::new("printchain").about("print all the chain blocks"))
             .subcommand(App::new("createwallet").about("create a wallet"))
             .subcommand(App::new("listaddresses").about("list all addresses"))
@@ -56,40 +60,30 @@ impl Cli {
                 }
                 println!("Balance: {}\n", balance);
             }
-        }
-
-        if let Some(_) = matches.subcommand_matches("createwallet") {
+        } else if let Some(_) = matches.subcommand_matches("createwallet") {
             let mut ws = Wallets::new()?;
             let address = ws.create_wallet();
             ws.save_all()?;
             println!("success: address {}", address);
-        }
-
-        if let Some(_) = matches.subcommand_matches("printchain") {
+        } else if let Some(_) = matches.subcommand_matches("printchain") {
             let bc = Blockchain::new()?;
             for b in bc.iter() {
                 println!("{:#?}", b);
             }
-        }
-
-        if let Some(_) = matches.subcommand_matches("reindex") {
+        } else if let Some(_) = matches.subcommand_matches("reindex") {
             let bc = Blockchain::new()?;
             let utxo_set = UTXOSet { blockchain: bc };
             utxo_set.reindex()?;
             let count = utxo_set.count_transactions()?;
             println!("Done! There are {} transactions in the UTXO set.", count);
-        }
-
-        if let Some(_) = matches.subcommand_matches("listaddresses") {
+        } else if let Some(_) = matches.subcommand_matches("listaddresses") {
             let ws = Wallets::new()?;
             let addresses = ws.get_all_addresses();
             println!("addresses: ");
             for ad in addresses {
                 println!("{}", ad);
             }
-        }
-
-        if let Some(ref matches) = matches.subcommand_matches("createblockchain") {
+        } else if let Some(ref matches) = matches.subcommand_matches("createblockchain") {
             if let Some(address) = matches.value_of("address") {
                 let address = String::from(address);
                 let bc = Blockchain::create_blockchain(address)?;
@@ -98,9 +92,7 @@ impl Cli {
                 utxo_set.reindex()?;
                 println!("create blockchain");
             }
-        }
-
-        if let Some(ref matches) = matches.subcommand_matches("send") {
+        } else if let Some(ref matches) = matches.subcommand_matches("send") {
             let from = if let Some(address) = matches.value_of("from") {
                 address
             } else {
@@ -130,6 +122,10 @@ impl Cli {
 
             utxo_set.update(&new_block)?;
             println!("success!");
+        } else {
+            if let Some(address) = matches.value_of("miner") {
+                Server::start_server("3000", address.to_string())?;
+            }
         }
 
         Ok(())
