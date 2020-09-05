@@ -15,7 +15,7 @@ a simple blockchain demo for learning
 4. part4: Transactions 1 [commit bdbdcec](https://github.com/yunwei37/blockchain-rust/tree/bdbdcec8b79d5ff701d207f67a1b68849a35d865)
 5. part5: Addresses [commit 440cba2](https://github.com/yunwei37/blockchain-rust/tree/440cba230cbd81957c3285b21c705a5708ed2b5b)
 6. part6: Transactions 2 [commit 4912743](https://github.com/yunwei37/blockchain-rust/tree/4912743daa2699cb8c0c4ba5bf136534b272cecd)
-7. part7: Network WIP
+7. part7: Network master
 
 ## reference
 
