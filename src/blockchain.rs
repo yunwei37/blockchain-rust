@@ -200,7 +200,7 @@ impl Blockchain {
     }
 
     /// GetBestHeight returns the height of the latest block
-    fn get_best_height(&self) -> Result<i32> {
+    pub fn get_best_height(&self) -> Result<i32> {
         let lasthash = self.db.get("LAST")?.unwrap();
         let last_data = self.db.get(lasthash)?.unwrap();
         let last_block: Block = deserialize(&last_data.to_vec())?;
