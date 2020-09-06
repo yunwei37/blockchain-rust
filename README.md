@@ -1,4 +1,4 @@
-# blockchain-rust
+# blockchain-rust - 用 rust 从零开始构建区块链(Bitcoin)系列
 
 [![Actions Status](https://github.com/yunwei37/blockchain-demo/workflows/CI/badge.svg)](https://github.com/yunwei37/blockchain-demo/actions)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -20,3 +20,4 @@ a simple blockchain demo for learning
 ## reference
 
 - blockchain_go code: [https://github.com/Jeiwan/blockchain_go](https://github.com/Jeiwan/blockchain_go)
+- Build a cryptocurrency! - Blockchain in Rust: [https://github.com/GeekLaunch/blockchain-rust](https://github.com/GeekLaunch/blockchain-rust)

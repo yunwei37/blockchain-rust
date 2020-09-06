@@ -11,6 +11,7 @@ use std::io::prelude::*;
 use std::net::{TcpListener, TcpStream};
 use std::sync::*;
 use std::thread;
+use std::time::Duration;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 enum Message {
@@ -54,7 +55,7 @@ struct Txmsg {
     transaction: Transaction,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 struct Versionmsg {
     addr_from: String,
     version: i32,
@@ -79,13 +80,12 @@ const CMD_LEN: usize = 12;
 const VERSION: i32 = 1;
 
 impl Server {
-    pub fn start_server(port: &str, miner_address: String) -> Result<()> {
-        let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
+    pub fn new(port: &str, miner_address: &str) -> Result<Server> {
         let mut node_set = HashSet::new();
         node_set.insert(String::from(KNOWN_NODE1));
-        let server = Server {
+        Ok(Server {
             node_address: String::from("localhost:") + port,
-            mining_address: miner_address,
+            mining_address: miner_address.to_string(),
             inner: Arc::new(Mutex::new(ServerInner {
                 known_nodes: node_set,
                 utxo: UTXOSet {
@@ -94,18 +94,38 @@ impl Server {
                 blocks_in_transit: Vec::new(),
                 mempool: HashMap::new(),
             })),
+        })
+    }
+
+    pub fn start_server(&self) -> Result<()> {
+        let server1 = Server {
+            node_address: self.node_address.clone(),
+            mining_address: self.mining_address.clone(),
+            inner: Arc::clone(&self.inner),
         };
+        thread::spawn(move || {
+            thread::sleep(Duration::from_millis(1000));
+            server1.send_version(KNOWN_NODE1)
+        });
+
+        let listener = TcpListener::bind(&self.node_address).unwrap();
 
         for stream in listener.incoming() {
             let stream = stream?;
             let server1 = Server {
-                node_address: server.node_address.clone(),
-                mining_address: server.mining_address.clone(),
-                inner: Arc::clone(&server.inner),
+                node_address: self.node_address.clone(),
+                mining_address: self.mining_address.clone(),
+                inner: Arc::clone(&self.inner),
             };
             thread::spawn(move || server1.handle_connection(stream));
         }
 
+        Ok(())
+    }
+
+    pub fn send_transaction(tx: &Transaction) -> Result<()> {
+        let server = Server::new("7000", "")?;
+        server.send_tx(KNOWN_NODE1, tx)?;
         Ok(())
     }
 
@@ -259,7 +279,7 @@ impl Server {
         self.send_data(addr, &data)
     }
 
-    fn send_tx(&self, addr: &str, tx: &Transaction) -> Result<()> {
+    pub fn send_tx(&self, addr: &str, tx: &Transaction) -> Result<()> {
         let data = Txmsg {
             addr_from: self.node_address.clone(),
             transaction: tx.clone(),
@@ -477,5 +497,31 @@ fn bytes_to_cmd(bytes: &[u8]) -> Result<Message> {
         Ok(Message::Version(data))
     } else {
         Err(format_err!("Unknown command in the server"))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::wallets::*;
+
+    #[test]
+    fn test_cmd() {
+        let mut ws = Wallets::new().unwrap();
+        let wa1 = ws.create_wallet();
+        Blockchain::create_blockchain(wa1).unwrap();
+        let server = Server::new("7878", "localhost:3001").unwrap();
+
+        let vmsg = Versionmsg {
+            addr_from: server.node_address.clone(),
+            best_height: server.get_best_height().unwrap(),
+            version: VERSION,
+        };
+        let data = serialize(&(cmd_to_bytes("version"), vmsg.clone())).unwrap();
+        if let Message::Version(v) = bytes_to_cmd(&data).unwrap() {
+            assert_eq!(v, vmsg);
+        } else {
+            panic!("wrong!");
+        }
     }
 }

@@ -43,7 +43,7 @@ impl Blockchain {
     pub fn create_blockchain(address: String) -> Result<Blockchain> {
         info!("Creating new blockchain");
 
-        std::fs::remove_dir_all("data/blocks")?;
+        std::fs::remove_dir_all("data/blocks").ok();
         let db = sled::open("data/blocks")?;
         debug!("Creating new block database");
         let cbtx = Transaction::new_coinbase(address, String::from(GENESIS_COINBASE_DATA))?;

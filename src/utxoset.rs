@@ -77,7 +77,7 @@ impl UTXOSet {
 
     /// Reindex rebuilds the UTXO set
     pub fn reindex(&self) -> Result<()> {
-        std::fs::remove_dir_all("data/utxos")?;
+        std::fs::remove_dir_all("data/utxos").ok();
         let db = sled::open("data/utxos")?;
 
         let utxos = self.blockchain.find_UTXO();
