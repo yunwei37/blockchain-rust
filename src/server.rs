@@ -1,6 +1,5 @@
 use super::*;
 use crate::block::*;
-use crate::blockchain::*;
 use crate::transaction::*;
 use crate::utxoset::*;
 use bincode::{deserialize, serialize};
@@ -80,7 +79,7 @@ const CMD_LEN: usize = 12;
 const VERSION: i32 = 1;
 
 impl Server {
-    pub fn new(port: &str, miner_address: &str) -> Result<Server> {
+    pub fn new(port: &str, miner_address: &str, utxo: UTXOSet) -> Result<Server> {
         let mut node_set = HashSet::new();
         node_set.insert(String::from(KNOWN_NODE1));
         Ok(Server {
@@ -88,9 +87,7 @@ impl Server {
             mining_address: miner_address.to_string(),
             inner: Arc::new(Mutex::new(ServerInner {
                 known_nodes: node_set,
-                utxo: UTXOSet {
-                    blockchain: Blockchain::new()?,
-                },
+                utxo,
                 blocks_in_transit: Vec::new(),
                 mempool: HashMap::new(),
             })),
@@ -103,12 +100,22 @@ impl Server {
             mining_address: self.mining_address.clone(),
             inner: Arc::clone(&self.inner),
         };
+        info!(
+            "Start server at {}, minning address: {}",
+            &self.node_address, &self.mining_address
+        );
+
         thread::spawn(move || {
             thread::sleep(Duration::from_millis(1000));
-            server1.send_version(KNOWN_NODE1)
+            if server1.get_best_height()? == -1 {
+                server1.request_blocks()
+            } else {
+                server1.send_version(KNOWN_NODE1)
+            }
         });
 
         let listener = TcpListener::bind(&self.node_address).unwrap();
+        info!("Server listen...");
 
         for stream in listener.incoming() {
             let stream = stream?;
@@ -123,8 +130,8 @@ impl Server {
         Ok(())
     }
 
-    pub fn send_transaction(tx: &Transaction) -> Result<()> {
-        let server = Server::new("7000", "")?;
+    pub fn send_transaction(tx: &Transaction, utxoset: UTXOSet) -> Result<()> {
+        let server = Server::new("7000", "", utxoset)?;
         server.send_tx(KNOWN_NODE1, tx)?;
         Ok(())
     }
@@ -175,6 +182,10 @@ impl Server {
         self.inner.lock().unwrap().mempool.insert(tx.id.clone(), tx);
     }
 
+    fn clear_mempool(&self) {
+        self.inner.lock().unwrap().mempool.clear()
+    }
+
     fn get_best_height(&self) -> Result<i32> {
         self.inner.lock().unwrap().utxo.blockchain.get_best_height()
     }
@@ -216,6 +227,9 @@ impl Server {
     /* -----------------------------------------------------*/
 
     fn send_data(&self, addr: &str, data: &[u8]) -> Result<()> {
+        if addr == &self.node_address {
+            return Ok(());
+        }
         let mut stream = match TcpStream::connect(addr) {
             Ok(s) => s,
             Err(_) => {
@@ -226,6 +240,7 @@ impl Server {
 
         stream.write(data)?;
 
+        info!("data send successfully");
         Ok(())
     }
 
@@ -237,6 +252,7 @@ impl Server {
     }
 
     fn send_block(&self, addr: &str, b: &Block) -> Result<()> {
+        info!("send block data to: {} block hash: {}", addr, b.get_hash());
         let data = Blockmsg {
             addr_from: self.node_address.clone(),
             block: b.clone(),
@@ -246,12 +262,17 @@ impl Server {
     }
 
     fn send_addr(&self, addr: &str) -> Result<()> {
+        info!("send address info to: {}", addr);
         let nodes = self.get_known_nodes();
         let data = serialize(&(cmd_to_bytes("addr"), nodes))?;
         self.send_data(addr, &data)
     }
 
     fn send_inv(&self, addr: &str, kind: &str, items: Vec<String>) -> Result<()> {
+        info!(
+            "send inv message to: {} kind: {} data: {:?}",
+            addr, kind, items
+        );
         let data = Invmsg {
             addr_from: self.node_address.clone(),
             kind: kind.to_string(),
@@ -262,14 +283,19 @@ impl Server {
     }
 
     fn send_get_blocks(&self, addr: &str) -> Result<()> {
+        info!("send get blocks message to: {}", addr);
         let data = GetBlocksmsg {
-            addr_from: addr.to_string(),
+            addr_from: self.node_address.clone(),
         };
         let data = serialize(&(cmd_to_bytes("getblocks"), data))?;
         self.send_data(addr, &data)
     }
 
     fn send_get_data(&self, addr: &str, kind: &str, id: &str) -> Result<()> {
+        info!(
+            "send get data message to: {} kind: {} id: {}",
+            addr, kind, id
+        );
         let data = GetDatamsg {
             addr_from: self.node_address.clone(),
             kind: kind.to_string(),
@@ -280,6 +306,7 @@ impl Server {
     }
 
     pub fn send_tx(&self, addr: &str, tx: &Transaction) -> Result<()> {
+        info!("send tx to: {} txid: {}", addr, &tx.id);
         let data = Txmsg {
             addr_from: self.node_address.clone(),
             transaction: tx.clone(),
@@ -289,6 +316,7 @@ impl Server {
     }
 
     fn send_version(&self, addr: &str) -> Result<()> {
+        info!("send version info to: {}", addr);
         let data = Versionmsg {
             addr_from: self.node_address.clone(),
             best_height: self.get_best_height()?,
@@ -299,6 +327,7 @@ impl Server {
     }
 
     fn handle_version(&self, msg: Versionmsg) -> Result<()> {
+        info!("receive version msg: {:#?}", msg);
         let my_best_height = self.get_best_height()?;
         if my_best_height < msg.best_height {
             self.send_get_blocks(&msg.addr_from)?;
@@ -308,13 +337,14 @@ impl Server {
 
         self.send_addr(&msg.addr_from)?;
 
-        if self.node_is_known(&msg.addr_from) {
+        if !self.node_is_known(&msg.addr_from) {
             self.add_nodes(&msg.addr_from);
         }
         Ok(())
     }
 
     fn handle_addr(&self, msg: Vec<String>) -> Result<()> {
+        info!("receive address msg: {:#?}", msg);
         for node in msg {
             self.add_nodes(&node);
         }
@@ -323,6 +353,11 @@ impl Server {
     }
 
     fn handle_block(&self, msg: Blockmsg) -> Result<()> {
+        info!(
+            "receive block msg: {}, {}",
+            msg.addr_from,
+            msg.block.get_hash()
+        );
         self.add_block(msg.block)?;
 
         let mut in_transit = self.get_in_transit();
@@ -339,6 +374,7 @@ impl Server {
     }
 
     fn handle_inv(&self, msg: Invmsg) -> Result<()> {
+        info!("receive inv msg: {:#?}", msg);
         if msg.kind == "block" {
             let block_hash = &msg.items[0];
             self.send_get_data(&msg.addr_from, "block", block_hash)?;
@@ -365,12 +401,14 @@ impl Server {
     }
 
     fn handle_get_blocks(&self, msg: GetBlocksmsg) -> Result<()> {
+        info!("receive get blocks msg: {:#?}", msg);
         let block_hashs = self.get_block_hashs();
         self.send_inv(&msg.addr_from, "block", block_hashs)?;
         Ok(())
     }
 
     fn handle_get_data(&self, msg: GetDatamsg) -> Result<()> {
+        info!("receive get data msg: {:#?}", msg);
         if msg.kind == "block" {
             let block = self.get_block(&msg.id)?;
             self.send_block(&msg.addr_from, &block)?;
@@ -382,6 +420,7 @@ impl Server {
     }
 
     fn handle_tx(&self, msg: Txmsg) -> Result<()> {
+        info!("receive tx msg: {} {}", msg.addr_from, &msg.transaction.id);
         self.insert_mempool(msg.transaction.clone());
 
         let known_nodes = self.get_known_nodes();
@@ -393,6 +432,7 @@ impl Server {
             }
         } else {
             let mut mempool = self.get_mempool();
+            debug!("Current mempool: {:#?}", &mempool);
             if mempool.len() >= 2 && !self.mining_address.is_empty() {
                 loop {
                     let mut txs = Vec::new();
@@ -429,6 +469,7 @@ impl Server {
                     }
                 }
             }
+            self.clear_mempool();
         }
 
         Ok(())
@@ -503,14 +544,16 @@ fn bytes_to_cmd(bytes: &[u8]) -> Result<Message> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::blockchain::*;
     use crate::wallets::*;
 
     #[test]
     fn test_cmd() {
         let mut ws = Wallets::new().unwrap();
         let wa1 = ws.create_wallet();
-        Blockchain::create_blockchain(wa1).unwrap();
-        let server = Server::new("7878", "localhost:3001").unwrap();
+        let bc = Blockchain::create_blockchain(wa1).unwrap();
+        let utxo_set = UTXOSet { blockchain: bc };
+        let server = Server::new("7878", "localhost:3001", utxo_set).unwrap();
 
         let vmsg = Versionmsg {
             addr_from: server.node_address.clone(),

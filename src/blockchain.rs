@@ -28,15 +28,17 @@ impl Blockchain {
         info!("open blockchain");
 
         let db = sled::open("data/blocks")?;
-        let hash = db
-            .get("LAST")?
-            .expect("Must create a new block database first");
+        let hash = match db.get("LAST")? {
+            Some(l) => l.to_vec(),
+            None => Vec::new(),
+        };
         info!("Found block database");
-        let lasthash = String::from_utf8(hash.to_vec())?;
-        Ok(Blockchain {
-            tip: lasthash.clone(),
-            db,
-        })
+        let lasthash = if hash.is_empty() {
+            String::new()
+        } else {
+            String::from_utf8(hash.to_vec())?
+        };
+        Ok(Blockchain { tip: lasthash, db })
     }
 
     /// CreateBlockchain creates a new blockchain DB
@@ -201,7 +203,11 @@ impl Blockchain {
 
     /// GetBestHeight returns the height of the latest block
     pub fn get_best_height(&self) -> Result<i32> {
-        let lasthash = self.db.get("LAST")?.unwrap();
+        let lasthash = if let Some(h) = self.db.get("LAST")? {
+            h
+        } else {
+            return Ok(-1);
+        };
         let last_data = self.db.get(lasthash)?.unwrap();
         let last_block: Block = deserialize(&last_data.to_vec())?;
         Ok(last_block.get_height())

@@ -102,7 +102,10 @@ impl Cli {
             }
         } else if let Some(ref matches) = matches.subcommand_matches("startnode") {
             if let Some(port) = matches.value_of("port") {
-                let server = Server::new(port, "")?;
+                println!("Start node...");
+                let bc = Blockchain::new()?;
+                let utxo_set = UTXOSet { blockchain: bc };
+                let server = Server::new(port, "", utxo_set)?;
                 server.start_server()?;
             }
         } else if let Some(ref matches) = matches.subcommand_matches("startminer") {
@@ -118,7 +121,10 @@ impl Cli {
                 println!("port not supply!: usage\n{}", matches.usage());
                 exit(1)
             };
-            let server = Server::new(port, address)?;
+            println!("Start miner node...");
+            let bc = Blockchain::new()?;
+            let utxo_set = UTXOSet { blockchain: bc };
+            let server = Server::new(port, address, utxo_set)?;
             server.start_server()?;
         }
 
@@ -138,7 +144,7 @@ fn cmd_send(from: &str, to: &str, amount: i32, mine_now: bool) -> Result<()> {
 
         utxo_set.update(&new_block)?;
     } else {
-        Server::send_transaction(&tx)?;
+        Server::send_transaction(&tx, utxo_set)?;
     }
 
     println!("success!");
