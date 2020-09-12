@@ -348,7 +348,7 @@ impl Server {
         for node in msg {
             self.add_nodes(&node);
         }
-        self.request_blocks()?;
+        //self.request_blocks()?;
         Ok(())
     }
 
@@ -433,7 +433,7 @@ impl Server {
         } else {
             let mut mempool = self.get_mempool();
             debug!("Current mempool: {:#?}", &mempool);
-            if mempool.len() >= 2 && !self.mining_address.is_empty() {
+            if mempool.len() >= 1 && !self.mining_address.is_empty() {
                 loop {
                     let mut txs = Vec::new();
 
@@ -468,8 +468,8 @@ impl Server {
                         break;
                     }
                 }
+                self.clear_mempool();
             }
-            self.clear_mempool();
         }
 
         Ok(())
