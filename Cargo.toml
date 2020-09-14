@@ -1,8 +1,14 @@
 [package]
 name = "blockchain-demo"
 version = "0.1.0"
-authors = ["yunwei <1067852565@qq.com>"]
+authors = ["yunwei37 <1067852565@qq.com>"]
+description = "A simplified blockchain implementation in rust for leaning"
 edition = "2018"
+readme = "README.md"
+homepage = "https://github.com/yunwei37/blockchain-rust"
+repository = "https://github.com/yunwei37/blockchain-rust"
+license = "MIT"
+keywords = ["blockchain", "demo"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
