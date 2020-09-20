@@ -7,7 +7,8 @@ Github链接，包含文档和全部代码：[https://github.com/yunwei37/blockc
 
 作为一个强调安全性的语言，Rust 和区块链的应用方向是十分契合的，也可以看到越来越多的区块链项目使用 Rust 进行开发。本文将使用 Rust 构建一个简单的区块链模型，并基于它来构建一个简化版的加密货币（参考比特币的实现），以供学习之用。大部分设计参考自Github上面使用Go语言完成的另外一个项目：blockchain_go，和 go 相比，Rust 的开发效率并不会低太多，但安全性和运行速度还是要好不少的。另外，得益于 Rust 在区块链相关部分的社区看起来还是挺繁荣的（？），我们很多简单的组件也可以采用开源库代替，例如地址生成等等。
 
->本文不会涉及太多的基础知识，具体可以参考原文的中文翻译：[liuchengxu.gitbook.io/blockchain/](https://liuchengxu.gitbook.io/blockchain/)
+>本文不会涉及太多的区块链基础知识，具体可以参考原文的中文翻译：[liuchengxu.gitbook.io/blockchain/](https://liuchengxu.gitbook.io/blockchain/)
+>阅读本文需要您对 rust 事先有一定了解
 
 第一篇文章希望讨论区块链最基本的数据结构原型，以及挖矿的本质 ---- 工作量证明算法
 

@@ -1,3 +1,4 @@
+#! https://zhuanlan.zhihu.com/p/256444986
 # rust 从零开始构建区块链(Bitcoin)系列 - 交易和一些辅助工具
 
 Github链接，包含文档和全部代码：
@@ -207,7 +208,7 @@ pub struct Transaction {
 - 一笔交易的输入可以引用之前多笔交易的输出；
 - 一个输入必须引用一个输出；
 
-这是输出，包含一定量的比特币和一个锁定脚本（这里并不会实现全面）：
+这是输出，包含一定量的比特币和一个锁定脚本（这里并不会实现全面的脚本语言）：
 
 ```rs
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -215,6 +216,16 @@ pub struct TXOutput {
     pub value: i32,
     pub script_pub_key: String,
 }
+```
+
+我们将只会简单地把输出和用户定义的钱包地址（一个任意的字符串）作比较：
+
+```rs
+impl TXOutput {
+    /// CanBeUnlockedWith checks if the output can be unlocked with the provided data
+    pub fn can_be_unlock_with(&self, unlockingData: &str) -> bool {
+        self.script_pub_key == unlockingData
+    }
 ```
 
 这是输入，引用（reference）之前一笔交易的输出：
@@ -226,5 +237,267 @@ pub struct TXInput {
     pub vout: i32,
     pub script_sig: String,
 }
+```
+
+事实上，虚拟货币就是存储在输出中里面。由于还没有实现地址（address），所以目前我们会避免涉及逻辑相关的完整脚本。
+
+来看看一个基本的使用场景：从一个用户向另外一个用户发送币，即创建一笔交易：
+
+之前我们仅仅实现了简单的 `coinbase` 交易方法，也就是挖矿，现在我们需要一种通用的普通交易：
+
+- 首先，我们需要使用 `find_spendable_outputs` 函数，找到发送方可以花费的货币数量，以及包含这些货币的未使用输出；
+- 然后，我们使用这些输出创建一个新的输入给接收方，这里已经被引用的输入就相当于被花掉了；注意，输出是不可再分的；
+- 最后，将多余的钱（找零）创建一个新的输出返回给发送方。
+
+好啦！一个最基本的交易原型就这样完成了，现在来看看代码；
+
+```rs
+impl Transaction {
+    /// NewUTXOTransaction creates a new transaction
+    pub fn new_UTXO(from: &str, to: &str, amount: i32, bc: &Blockchain) -> Result<Transaction> {
+        info!("new UTXO Transaction from: {} to: {}", from, to);
+        let mut vin = Vec::new();
+        let acc_v = bc.find_spendable_outputs(from, amount);
+
+        if acc_v.0 < amount {
+            error!("Not Enough balance");
+            return Err(format_err!(
+                "Not Enough balance: current balance {}",
+                acc_v.0
+            ));
+        }
+
+        for tx in acc_v.1 {
+            for out in tx.1 {
+                let input = TXInput {
+                    txid: tx.0.clone(),
+                    vout: out,
+                    script_sig: String::from(from),
+                };
+                vin.push(input);
+            }
+        }
+
+        let mut vout = vec![TXOutput {
+            value: amount,
+            script_pub_key: String::from(to),
+        }];
+        if acc_v.0 > amount {
+            vout.push(TXOutput {
+                value: acc_v.0 - amount,
+                script_pub_key: String::from(from),
+            })
+        }
+
+        let mut tx = Transaction {
+            id: String::new(),
+            vin,
+            vout,
+        };
+        tx.set_id()?;
+        Ok(tx)
+    }
+```
+
+来看看相关的辅助函数，首先是在区块链中寻找未花费的输出 find_spendable_outputs，该方法返回一个包含累积未花费输出和相关输出结构体集合的元组：
+
+- 首先，使用 `find_unspent_transactions` 找到包含发送方的所有未花掉的输出；
+- 然后，在所有未花掉的输出上面迭代，将能够被使用者解锁的输出的 id 插入到用交易 id 作为索引的集合中；增加累计数值；
+- 当累计数值超过需要数值的时候返回。
+
+```rs
+impl Blockchain {
+    pub fn find_spendable_outputs(
+        &self,
+        address: &str,
+        amount: i32,
+    ) -> (i32, HashMap<String, Vec<i32>>) {
+        let mut unspent_outputs: HashMap<String, Vec<i32>> = HashMap::new();
+        let mut accumulated = 0;
+        let unspend_TXs = self.find_unspent_transactions(address);
+
+        for tx in unspend_TXs {
+            for index in 0..tx.vout.len() {
+                if tx.vout[index].can_be_unlock_with(address) && accumulated < amount {
+                    match unspent_outputs.get_mut(&tx.id) {
+                        Some(v) => v.push(index as i32),
+                        None => {
+                            unspent_outputs.insert(tx.id.clone(), vec![index as i32]);
+                        }
+                    }
+                    accumulated += tx.vout[index].value;
+
+                    if accumulated >= amount {
+                        return (accumulated, unspent_outputs);
+                    }
+                }
+            }
+        }
+        (accumulated, unspent_outputs)
+    }
+```
+
+下一步是找到区块链中对应地址能解锁的包含未花费输出的交易，即 `find_unspent_transactions`：
+
+- 如果一个输出可以被发送方的地址解锁，并且该输出没有被包含在一个交易的输入中，它就是可以使用的；
+- 由于我们对区块链是从尾部往头部迭代，因此如果我们见到的输出没有被包含在我们见到的任何一笔输入中，它就是未使用的；
+- 我们将见到的输入加入一个集合，然后在这个集合中查找对应的输出，如果一个输出可以被解锁并且没有在集合中找到的话，它就是可以被花费的。
+
+```rs
+impl Blockchain {
+    fn find_unspent_transactions(&self, address: &str) -> Vec<Transaction> {
+        let mut spent_TXOs: HashMap<String, Vec<i32>> = HashMap::new();
+        let mut unspend_TXs: Vec<Transaction> = Vec::new();
+
+        for block in self.iter() {
+            for tx in block.get_transaction() {
+                for index in 0..tx.vout.len() {
+                    if let Some(ids) = spent_TXOs.get(&tx.id) {
+                        if ids.contains(&(index as i32)) {
+                            continue;
+                        }
+                    }
+
+                    if tx.vout[index].can_be_unlock_with(address) {
+                        unspend_TXs.push(tx.to_owned())
+                    }
+                }
+
+                if !tx.is_coinbase() {
+                    for i in &tx.vin {
+                        if i.can_unlock_output_with(address) {
+                            match spent_TXOs.get_mut(&i.txid) {
+                                Some(v) => {
+                                    v.push(i.vout);
+                                }
+                                None => {
+                                    spent_TXOs.insert(i.txid.clone(), vec![i.vout]);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        unspend_TXs
+    }
 
 ```
+
+对于一个普通的交易，可以用以上方法完成；但我们还需要一种 `coinbase` 交易，它“凭空”产生了币，这是矿工获得挖出新块的奖励；
+
+```rs
+impl Transaction {
+    pub fn new_coinbase(to: String, mut data: String) -> Result<Transaction> {
+        info!("new coinbase Transaction to: {}", to);
+        if data == String::from("") {
+            data += &format!("Reward to '{}'", to);
+        }
+        let mut tx = Transaction {
+            id: String::new(),
+            vin: vec![TXInput {
+                txid: String::new(),
+                vout: -1,
+                script_sig: data,
+            }],
+            vout: vec![TXOutput {
+                value: SUBSIDY,
+                script_pub_key: to,
+            }],
+        };
+        tx.set_id()?;
+        Ok(tx)
+    }
+```
+
+我们还可以创建一个简单的辅助函数，让我们可以比较简单地获取余额：这个函数返回了一个交易列表，里面包含了未花费输出；
+
+```rs
+impl Blockchain {
+    /// FindUTXO finds and returns all unspent transaction outputs
+    pub fn find_UTXO(&self, address: &str) -> Vec<TXOutput> {
+        let mut utxos = Vec::<TXOutput>::new();
+        let unspend_TXs = self.find_unspent_transactions(address);
+        for tx in unspend_TXs {
+            for out in &tx.vout {
+                if out.can_be_unlock_with(&address) {
+                    utxos.push(out.clone());
+                }
+            }
+        }
+        utxos
+    }
+```
+
+交易的部分差不多就这些啦！我们已经完成了准备工作，现在可以更改一下之前留下来的接口：
+
+我们首先需要在区块中添加一下包含的交易，是这样的：
+
+```rs
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Block {
+    timestamp: u128,
+    transactions: Vec<Transaction>,
+    prev_block_hash: String,
+    hash: String,
+    nonce: i32,
+}
+
+```
+
+然后也要更改一下添加区块的接口：
+
+```rs
+
+impl Block {
+    pub fn new_block(transactions: Vec<Transaction>, prev_block_hash: String) -> Result<Block> {
+        ....
+    }
+
+    pub fn new_genesis_block(coinbase: Transaction) -> Block {
+        Block::new_block(vec![coinbase], String::new()).unwrap()
+    }
+```
+
+在创建区块链的时候，我们也需要创建一笔 `coinbase` 交易：
+
+```rs
+impl Blockchain {
+    pub fn create_blockchain(address: String) -> Result<Blockchain> {
+        ...
+        let cbtx = Transaction::new_coinbase(address, String::from(GENESIS_COINBASE_DATA))?;
+        let genesis: Block = Block::new_genesis_block(cbtx);
+        ...
+    }
+```
+
+基本上大功告成！我们看看具体的命令实现：
+
+send 命令：
+
+```rs
+        ...
+            let mut bc = Blockchain::new()?;
+            let tx = Transaction::new_UTXO(from, to, amount, &bc)?;
+            bc.mine_block(vec![tx])?;
+        ...
+```
+
+getbalance 命令：
+
+```rs
+        ...
+            let bc = Blockchain::new()?;
+            let utxos = bc.find_UTXO(&address);
+
+            let mut balance = 0;
+            for out in utxos {
+                balance += out.value;
+            }
+            println!("Balance of '{}': {}\n", address, balance);
+        ...
+```
+
+这样就好啦！如果想要进一步观察交易的相关知识，可以参考：[https://en.bitcoin.it/wiki/Transaction](https://en.bitcoin.it/wiki/Transaction)
+
