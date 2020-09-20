@@ -1,3 +1,5 @@
+//! cli process
+
 use super::*;
 use crate::blockchain::*;
 use crate::server::*;

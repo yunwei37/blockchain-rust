@@ -1,3 +1,5 @@
+//! transaction implement
+
 use super::*;
 use crate::utxoset::*;
 use crate::wallets::*;
@@ -125,6 +127,7 @@ impl Transaction {
         self.vin.len() == 1 && self.vin[0].txid.is_empty() && self.vin[0].vout == -1
     }
 
+    /// Verify verifies signatures of Transaction inputs
     pub fn verify(&self, prev_TXs: HashMap<String, Transaction>) -> Result<bool> {
         if self.is_coinbase() {
             return Ok(true);
@@ -159,6 +162,7 @@ impl Transaction {
         Ok(true)
     }
 
+    /// Sign signs each input of a Transaction
     pub fn sign(
         &mut self,
         private_key: &[u8],
@@ -191,6 +195,7 @@ impl Transaction {
         Ok(())
     }
 
+    /// Hash returns the hash of the Transaction
     pub fn hash(&self) -> Result<String> {
         let mut copy = self.clone();
         copy.id = String::new();
@@ -200,6 +205,7 @@ impl Transaction {
         Ok(hasher.result_str())
     }
 
+    /// TrimmedCopy creates a trimmed copy of Transaction to be used in signing
     fn trim_copy(&self) -> Transaction {
         let mut vin = Vec::new();
         let mut vout = Vec::new();

@@ -1,3 +1,5 @@
+//! bitcoin wallet
+
 use super::*;
 use bincode::{deserialize, serialize};
 use bitcoincash_addr::*;
@@ -17,6 +19,7 @@ pub struct Wallet {
 }
 
 impl Wallet {
+    /// NewWallet creates and returns a Wallet
     fn new() -> Self {
         let mut key: [u8; 32] = [0; 32];
         let mut rand = rand::OsRng::new().unwrap();
@@ -30,6 +33,7 @@ impl Wallet {
         }
     }
 
+    /// GetAddress returns wallet address
     pub fn get_address(&self) -> String {
         let mut pub_hash: Vec<u8> = self.public_key.clone();
         hash_pub_key(&mut pub_hash);
@@ -43,6 +47,7 @@ impl Wallet {
     }
 }
 
+/// HashPubKey hashes public key
 pub fn hash_pub_key(pubKey: &mut Vec<u8>) {
     let mut hasher1 = Sha256::new();
     hasher1.input(pubKey);

@@ -1,3 +1,5 @@
+//! Blockchain
+
 use super::*;
 use crate::block::*;
 use crate::transaction::*;

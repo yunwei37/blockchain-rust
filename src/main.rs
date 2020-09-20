@@ -1,4 +1,5 @@
 #![allow(non_snake_case)]
+
 mod block;
 mod blockchain;
 mod cli;

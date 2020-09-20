@@ -1,3 +1,5 @@
+//! Block implement of blockchain
+
 use super::*;
 use crate::transaction::Transaction;
 use bincode::serialize;
@@ -77,6 +79,7 @@ impl Block {
         Ok(())
     }
 
+    /// HashTransactions returns a hash of the transactions in the block
     fn hash_transactions(&self) -> Result<Vec<u8>> {
         let mut transactions = Vec::new();
         for tx in &self.transactions {
